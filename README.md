@@ -1,206 +1,134 @@
-Exynos 9820/9825 Repartitioner & Partition Cleaner
+# Exynos 9820/9825 Repartitioner & Partition Cleaner
 
-Recovery-flashable ZIPs for Samsung Exynos 9820/9825 devices that resize and recreate partitions to provide enough space for modern One UI 5+ port ROMs and GSIs.
+Recovery-flashable ZIPs that resize and recreate the partitions on Samsung Exynos 9820/9825 devices, so modern **One UI 5 and newer** port ROMs or GSIs fit.
 
-«[!CAUTION]
-This process completely wipes the device, including internal storage.
-
-Back up everything before proceeding. You are responsible for any damage or data loss caused by using these ZIPs.»
+> [!CAUTION]
+> **This entirely wipes all your data on the device, including internal storage.** Back up everything first. Flash this at your own risk.
 
 ---
 
-Supported Devices
+## Supported ROMs
 
-For Exynos variants only:
-
-- Galaxy S10 series — Exynos 9820
-- Galaxy Note10 series — Exynos 9825
-
-Do not flash on Snapdragon models.
-
----
-
-Supported ROMs
-
-Primarily intended for One UI 5 and newer port ROMs whose system, vendor, or product partitions exceed the stock layout.
-
-Examples include:
+Made for One UI 5 and up **port ROMs** for the S10 / Note10 family, such as:
 
 - ExtremeROM
 - ApricityROM
 - ArtisanROM
 - AzROM
-- Other One UI 5+ ports requiring additional partition space
+- ...and any other One UI 5+ port that needs more room than the stock partition layout provides
 
-It can also be used when additional space is required for GSIs or heavily modified ROMs.
+Stock partitions are too small for some newer, larger system images. Repartitioning gives them the space they need.
 
----
+## What else is it useful for
 
-Requirements
+- Expanding partitions to flash **GSIs**
+- Giving `system`, `vendor` and `product` more room for large or heavily modified ROMs
+- Starting from a clean, freshly formatted partition layout before installing a new ROM
 
-- **ExtremeXT's TWRP** for Exynos 9820  
-  [Download from GitHub Releases](https://github.com/emadhamid7/android_device_samsung_exynos9820/releases)
-- Unlocked bootloader
-- Complete backup of your data
-- Battery charged to at least 50%
-- A PC with Odin
-- Stock firmware for your exact model/region
-- Matching device PIT file
+## Supported devices
 
-«[!IMPORTANT]
-The repartitioner is designed for ExtremeXT's TWRP. Other recovery builds may not work correctly.»
+Samsung **Exynos 9820 / 9825** devices:
 
----
+- Galaxy S10 series (Exynos 9820)
+- Galaxy Note10 series (Exynos 9825)
 
-Downloads
-
-ZIPs are available from the "Releases" (../../releases) page.
-
-ZIP| Description
-"Exynos9820_Repartitioner.zip"| Applies the default partition layout
-"Exynos9820_Repartitioner_Custom.zip"| Applies a custom "system", "vendor", and "product" layout
-"Exynos9820_cleaner.zip"| Formats the newly created partitions
-
-The repartitioner resizes/recreates:
-
-"system" · "vendor" · "product" · "odm" · "prism" · "optics" · "cache" · "omr" · "cp_debug" · "cp2_debug" · "spu" · "userdata"
-
-The cleaner formats the resulting partitions using ext4, with f2fs for "userdata".
+**Exynos variants only. Do not flash this on Snapdragon models.**
 
 ---
 
-Default Partition Layout
+## Prerequisites
 
-Sizes are in MiB.
+- **ExtremeXT's version of TWRP.** These ZIPs are designed to be flashed with it, not stock recovery or other TWRP builds. [Download here](https://github.com/emadhamid7/android_device_samsung_exynos9820/releases)
+- An unlocked bootloader
+- A full backup of everything you care about
+- A charged battery (50% or more recommended)
+- A PC with Odin, plus your device's stock firmware and matching PIT file, in case you need to restore the stock partition layout
 
-Partition| Size
-"system"| 7000
-"vendor"| 1500
-"product"| 1500
-"odm"| 4
-"prism"| 600
-"optics"| 30
-"cache"| 600
-"omr"| 50
-"cp_debug"| 5
-"cp2_debug"| 5
-"spu"| 50
-"userdata"| Remaining space
+## Downloads
 
-The Custom version allows the "system", "vendor", and "product" sizes to be changed to suit larger ROMs.
+Get the ZIPs from the [Releases](../../releases) page:
 
----
+| Release | Contents |
+| --- | --- |
+| `Exynos-9820-Repartitioner` | Default sizes |
+| `Exynos-9820-Repartitioner-Custom` | Custom System / Vendor / Product sizes |
 
-Flashing
-
-Do not boot Android between these steps.
-
-1. Boot into TWRP
-
-Boot into ExtremeXT's TWRP.
-
-2. Flash the Repartitioner
-
-Flash either:
-
-- "Exynos9820_Repartitioner.zip"
-- "Exynos9820_Repartitioner_Custom.zip"
-
-The ZIP provides a 15-second abort window before modifying the partition table.
-
-If you need to abort during this window, hard reboot with:
-
-Volume Down + Power
-
-Once the operation completes, the device automatically reboots back into recovery.
-
-3. Flash the Cleaner
-
-Flash:
-
-"Exynos9820_cleaner.zip"
-
-The device will reboot to recovery again after the cleaner finishes.
-
-4. Flash your ROM
-
-Now flash your ROM or GSI normally.
-
-Flash order
-
-1. Repartitioner
-2. Cleaner
-3. ROM / GSI
-
-«[!IMPORTANT]
-The cleaner must be flashed before the ROM. The newly created partitions are not ready for normal ROM installation until they have been formatted.»
+| ZIP | What it does |
+| --- | --- |
+| `Exynos9820_Repartitioner.zip` | Resizes `system` and recreates `vendor`, `product`, `odm`, `prism`, `optics`, `cache`, `omr`, `cp_debug`, `cp2_debug`, `spu` and `userdata` |
+| `Exynos9820_Repartitioner_Custom.zip` | Same, built with custom `system`, `vendor` and `product` sizes |
+| `Exynos9820_cleaner.zip` | Formats the new partitions (`ext4`, with `f2fs` for `userdata`) |
 
 ---
 
-Restoring the Stock Partition Layout
+## How to flash
 
-The original Samsung partition layout cannot be restored from recovery.
+**Flash in this exact order. Do not boot into system between steps.**
 
-To return to the stock layout, use Odin with the PIT from your device:
+1. Boot into **ExtremeXT's TWRP**.
+2. Flash **`Exynos9820_Repartitioner.zip`** (or the Custom one).
+   - You get a **15 second window** to abort by hard rebooting (**Volume Down + Power**) before anything is touched.
+   - The phone reboots to recovery when it finishes.
+3. Flash **`Exynos9820_cleaner.zip`**.
+   - The phone reboots to recovery again.
+4. Flash your **ROM** (or GSI) as usual.
 
-1. Download the stock firmware for your exact model and region.
-2. Obtain the matching PIT file.
-3. Boot the phone into Download Mode.
-4. Open Odin on a PC.
-5. Load the stock firmware:
-   - BL
-   - AP
-   - CP
-   - CSC
-6. Load the matching PIT in Odin's PIT tab.
-7. Enable Re-Partition.
-8. Flash the firmware.
+| When | What to flash |
+| --- | --- |
+| First | Repartitioner |
+| Second | Cleaner |
+| Last | Your ROM / GSI |
 
-«[!CAUTION]
-Never use a PIT intended for another device or storage configuration. A wrong PIT can cause serious problems or leave the device unable to boot.»
+> [!IMPORTANT]
+> Always flash the Repartitioner first, then the Cleaner, then your ROM. The Cleaner is required because the new partitions are unformatted until it runs.
 
----
+## Default partition sizes (MiB)
 
-Troubleshooting
+| Partition | Size |
+| --- | --- |
+| system | 7000 |
+| vendor | 1500 |
+| product | 1500 |
+| odm | 4 |
+| prism | 600 |
+| optics | 30 |
+| cache | 600 |
+| omr | 50 |
+| cp_debug / cp2_debug | 5 |
+| spu | 50 |
 
-Repartitioner flashed, but Android no longer boots
-
-This is expected if you have not yet flashed the cleaner and ROM.
-
-Return to recovery and flash:
-
-Repartitioner → Cleaner → ROM
-
-Recovery looks incorrect or the ZIP fails
-
-Verify that you are using ExtremeXT's TWRP.
-
-The ROM does not fit
-
-Use the Custom repartitioner and increase the required "system", "vendor", or "product" partition size.
-
-Make sure the total allocation remains within the physical storage capacity of the device.
-
-Device bootloops after completing the process
-
-Try reinstalling in the correct order:
-
-Repartitioner → Cleaner → ROM
-
-If the problem persists, restore the stock partition layout using Odin and the correct PIT.
-
-I changed my mind after flashing the repartitioner
-
-If the ZIP is still within its 15-second abort window, hard reboot with:
-
-Volume Down + Power
-
-After the partition table has been modified, restoration requires Odin + the correct PIT.
+`userdata` takes all remaining space.
 
 ---
 
-Credits
+## Undoing the repartition
 
-- @Astrako — Original repartitioner
-- @xxmustafacooTR and @JeyKul — 9810 adaptation
-- @ExtremeXT and @david42069 — 9820 adaptation
+The stock layout can't be restored from recovery. To go back:
+
+1. Download the **stock firmware** for your exact model and region, and the matching **PIT file** for your device.
+2. Boot into Download Mode and open **Odin** on your PC.
+3. Load the stock firmware files (**BL / AP / CP / CSC**) as normal.
+4. Load the **PIT file** in the PIT tab and enable **Re-Partition**.
+5. Flash. This restores the original partition table.
+
+> [!CAUTION]
+> **Use the PIT that matches your exact device. A wrong PIT can brick it.**
+
+---
+
+## Tips & troubleshooting
+
+- **Flashed the Repartitioner, then rebooted to system and it won't boot.** Expected. Go back to recovery and flash the Cleaner, then your ROM.
+- **Recovery looks wrong or the ZIP errors out.** Make sure you're using ExtremeXT's TWRP from the link above.
+- **Not enough space for your ROM or GSI.** Use the Custom build with larger `system`, `vendor` or `product` values. Keep the total within your device's storage capacity.
+- **Stuck or bootlooping after everything.** Reflash the Repartitioner and Cleaner in order, then your ROM. If that fails, restore stock with Odin and the matching PIT.
+- **Changed your mind after step 2?** Hard reboot during the 15 second window. After the partition table has been modified, you'll need Odin and the correct PIT to undo it.
+- Keep a copy of your stock firmware and PIT file somewhere safe before you start.
+
+---
+
+## Credits
+
+- Written by @Astrako
+- Adapted to 9810 by @xxmustafacooTR and @JeyKul
+- Adapted to 9820 by @ExtremeXT and @david42069
