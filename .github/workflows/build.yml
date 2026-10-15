@@ -1,0 +1,186 @@
+name: Build flashable ZIPs
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['**.md']
+  workflow_dispatch:
+    inputs:
+      size_mode:
+        description: "Partition sizes: default or manual"
+        type: choice
+        options:
+          - default
+          - manual
+        default: default
+      systemsize:
+        description: "Manual only - system size (MiB)"
+        type: string
+        default: "7000"
+      vendorsize:
+        description: "Manual only - vendor size (MiB)"
+        type: string
+        default: "1500"
+      productsize:
+        description: "Manual only - product size (MiB)"
+        type: string
+        default: "1500"
+      odmsize:
+        description: "Manual only - odm size (MiB)"
+        type: string
+        default: "4"
+      prismsize:
+        description: "Manual only - prism size (MiB)"
+        type: string
+        default: "600"
+      opticssize:
+        description: "Manual only - optics size (MiB)"
+        type: string
+        default: "30"
+      cachesize:
+        description: "Manual only - cache size (MiB)"
+        type: string
+        default: "600"
+      omrsize:
+        description: "Manual only - omr size (MiB)"
+        type: string
+        default: "50"
+      cpdbgsize:
+        description: "Manual only - cp_debug / cp2_debug size (MiB)"
+        type: string
+        default: "5"
+      spusize:
+        description: "Manual only - spu size (MiB)"
+        type: string
+        default: "50"
+      publish_release:
+        description: Publish a GitHub release
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      SIZE_MODE: ${{ inputs.size_mode || 'default' }}
+      IN_systemsize: ${{ inputs.systemsize }}
+      IN_vendorsize: ${{ inputs.vendorsize }}
+      IN_productsize: ${{ inputs.productsize }}
+      IN_odmsize: ${{ inputs.odmsize }}
+      IN_prismsize: ${{ inputs.prismsize }}
+      IN_opticssize: ${{ inputs.opticssize }}
+      IN_cachesize: ${{ inputs.cachesize }}
+      IN_omrsize: ${{ inputs.omrsize }}
+      IN_cpdbgsize: ${{ inputs.cpdbgsize }}
+      IN_spusize: ${{ inputs.spusize }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check required files
+        run: |
+          missing=0
+          for f in \
+            repartitioner/extreme/jq \
+            repartitioner/extreme/parted \
+            repartitioner/META-INF/com/google/android/update-binary \
+            cleaner/META-INF/com/google/android/update-binary; do
+            if [ ! -f "$f" ]; then
+              echo "::error::Missing required file: $f"
+              missing=1
+            fi
+          done
+          exit $missing
+
+      - name: Apply manual sizes
+        if: env.SIZE_MODE == 'manual'
+        run: |
+          set -euo pipefail
+          SCRIPT=repartitioner/extreme/repartition.sh
+          for name in systemsize vendorsize productsize odmsize prismsize opticssize cachesize omrsize cpdbgsize spusize; do
+            var="IN_${name}"
+            raw="${!var}"
+            if ! [[ "$raw" =~ ^[0-9]+$ ]]; then
+              echo "::error::${name} must be a whole number in MiB, got '${raw}'"
+              exit 1
+            fi
+            value=$((10#$raw))
+            if [ "$value" -le 0 ]; then
+              echo "::error::${name} must be greater than 0"
+              exit 1
+            fi
+            sed -i "s/^${name}=.*/${name}=${value}/" "$SCRIPT"
+            grep -qx "${name}=${value}" "$SCRIPT"
+          done
+
+      - name: Build ZIPs
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          SUFFIX=""
+          if [ "$SIZE_MODE" = "manual" ]; then
+            SUFFIX="_Custom"
+          fi
+          (cd repartitioner && zip -r9 -X "../out/Exynos9820_Repartitioner${SUFFIX}.zip" META-INF extreme)
+          (cd cleaner && zip -r9 -X ../out/Exynos9820_Partition_Cleaner.zip META-INF extreme)
+
+          {
+            echo "Mode: ${SIZE_MODE}"
+            echo
+            echo "Partition sizes used by the repartitioner (MiB):"
+            echo
+            echo '```'
+            grep -E '^[a-z]+size=' repartitioner/extreme/repartition.sh
+            echo '```'
+            echo
+            echo "Flash the Repartitioner ZIP first, then the Partition Cleaner ZIP."
+          } > out/RELEASE_NOTES.md
+
+          cat out/RELEASE_NOTES.md >> "$GITHUB_STEP_SUMMARY"
+          ls -lh out
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Exynos9820-Repartitioner-Cleaner
+          path: out/*
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: build
+    if: github.event_name == 'push' || inputs.publish_release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Exynos9820-Repartitioner-Cleaner
+          path: dist
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum *.zip > SHA256SUMS.txt
+          ls -lh
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.size_mode == 'manual' && 'Exynos-9820-Repartitioner-Custom' || 'Exynos-9820-Repartitioner' }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ inputs.size_mode == 'manual' && 'Exynos 9820/9825 Repartitioner (Custom sizes)' || 'Exynos 9820/9825 Repartitioner' }}
+          body_path: dist/RELEASE_NOTES.md
+          files: |
+            dist/*.zip
+            dist/SHA256SUMS.txt
