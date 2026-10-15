@@ -1,0 +1,134 @@
+name: Build flashable ZIPs (Custom sizes)
+
+on:
+  workflow_dispatch:
+    inputs:
+      systemsize:
+        description: "System size (MiB)"
+        type: string
+        default: "7000"
+      vendorsize:
+        description: "Vendor size (MiB)"
+        type: string
+        default: "1500"
+      productsize:
+        description: "Product size (MiB)"
+        type: string
+        default: "1500"
+      publish_release:
+        description: Publish a GitHub release
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-custom-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      IN_systemsize: ${{ inputs.systemsize }}
+      IN_vendorsize: ${{ inputs.vendorsize }}
+      IN_productsize: ${{ inputs.productsize }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check required files
+        run: |
+          missing=0
+          for f in \
+            repartitioner/extreme/jq \
+            repartitioner/extreme/parted \
+            repartitioner/META-INF/com/google/android/update-binary \
+            cleaner/META-INF/com/google/android/update-binary; do
+            if [ ! -f "$f" ]; then
+              echo "::error::Missing required file: $f"
+              missing=1
+            fi
+          done
+          exit $missing
+
+      - name: Apply manual sizes
+        run: |
+          set -euo pipefail
+          SCRIPT=repartitioner/extreme/repartition.sh
+          for name in systemsize vendorsize productsize; do
+            var="IN_${name}"
+            raw="${!var}"
+            if ! [[ "$raw" =~ ^[0-9]+$ ]]; then
+              echo "::error::${name} must be a whole number in MiB, got '${raw}'"
+              exit 1
+            fi
+            value=$((10#$raw))
+            if [ "$value" -le 0 ]; then
+              echo "::error::${name} must be greater than 0"
+              exit 1
+            fi
+            sed -i "s/^${name}=.*/${name}=${value}/" "$SCRIPT"
+            grep -qx "${name}=${value}" "$SCRIPT"
+          done
+
+      - name: Build ZIPs
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          (cd repartitioner && zip -r9 -X ../out/Exynos9820_Repartitioner_Custom.zip META-INF extreme)
+          (cd cleaner && zip -r9 -X ../out/Exynos9820_cleaner.zip META-INF extreme)
+
+          {
+            echo "Mode: Manual"
+            echo
+            echo "Partition sizes used by the repartitioner (MiB):"
+            echo
+            echo '```'
+            grep -E '^(system|vendor|product)size=' repartitioner/extreme/repartition.sh
+            echo '```'
+            echo
+            echo "Flash the Repartitioner ZIP first, then the cleaner ZIP."
+          } > out/RELEASE_NOTES.md
+
+          cat out/RELEASE_NOTES.md >> "$GITHUB_STEP_SUMMARY"
+          ls -lh out
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Exynos9820-Repartitioner-Cleaner-Custom
+          path: out/*
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: build
+    if: inputs.publish_release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Exynos9820-Repartitioner-Cleaner-Custom
+          path: dist
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum *.zip > SHA256SUMS.txt
+          ls -lh
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: Exynos-9820-Repartitioner-Custom
+          target_commitish: ${{ github.sha }}
+          name: Exynos 9820/9825 Repartitioner (Custom sizes)
+          body_path: dist/RELEASE_NOTES.md
+          files: |
+            dist/*.zip
+            dist/SHA256SUMS.txt

@@ -6,25 +6,6 @@ on:
     paths-ignore: ['**.md']
   workflow_dispatch:
     inputs:
-      size_mode:
-        description: "Select sizes"
-        type: choice
-        options:
-          - Default
-          - Manual
-        default: Default
-      systemsize:
-        description: "System size (MiB) - Manual only"
-        type: string
-        default: "7000"
-      vendorsize:
-        description: "Vendor size (MiB) - Manual only"
-        type: string
-        default: "1500"
-      productsize:
-        description: "Product size (MiB) - Manual only"
-        type: string
-        default: "1500"
       publish_release:
         description: Publish a GitHub release
         type: boolean
@@ -40,12 +21,6 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      SIZE_MODE: ${{ inputs.size_mode || 'Default' }}
-      IN_systemsize: ${{ inputs.systemsize }}
-      IN_vendorsize: ${{ inputs.vendorsize }}
-      IN_productsize: ${{ inputs.productsize }}
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -65,40 +40,15 @@ jobs:
           done
           exit $missing
 
-      - name: Apply manual sizes
-        if: env.SIZE_MODE == 'Manual'
-        run: |
-          set -euo pipefail
-          SCRIPT=repartitioner/extreme/repartition.sh
-          for name in systemsize vendorsize productsize; do
-            var="IN_${name}"
-            raw="${!var}"
-            if ! [[ "$raw" =~ ^[0-9]+$ ]]; then
-              echo "::error::${name} must be a whole number in MiB, got '${raw}'"
-              exit 1
-            fi
-            value=$((10#$raw))
-            if [ "$value" -le 0 ]; then
-              echo "::error::${name} must be greater than 0"
-              exit 1
-            fi
-            sed -i "s/^${name}=.*/${name}=${value}/" "$SCRIPT"
-            grep -qx "${name}=${value}" "$SCRIPT"
-          done
-
       - name: Build ZIPs
         run: |
           set -euo pipefail
           mkdir -p out
-          SUFFIX=""
-          if [ "$SIZE_MODE" = "Manual" ]; then
-            SUFFIX="_Custom"
-          fi
-          (cd repartitioner && zip -r9 -X "../out/Exynos9820_Repartitioner${SUFFIX}.zip" META-INF extreme)
+          (cd repartitioner && zip -r9 -X ../out/Exynos9820_Repartitioner.zip META-INF extreme)
           (cd cleaner && zip -r9 -X ../out/Exynos9820_cleaner.zip META-INF extreme)
 
           {
-            echo "Mode: ${SIZE_MODE}"
+            echo "Mode: Default"
             echo
             echo "Partition sizes used by the repartitioner (MiB):"
             echo
@@ -142,9 +92,9 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.size_mode == 'Manual' && 'Exynos-9820-Repartitioner-Custom' || 'Exynos-9820-Repartitioner' }}
+          tag_name: Exynos-9820-Repartitioner
           target_commitish: ${{ github.sha }}
-          name: ${{ inputs.size_mode == 'Manual' && 'Exynos 9820/9825 Repartitioner (Custom sizes)' || 'Exynos 9820/9825 Repartitioner' }}
+          name: Exynos 9820/9825 Repartitioner
           body_path: dist/RELEASE_NOTES.md
           files: |
             dist/*.zip
