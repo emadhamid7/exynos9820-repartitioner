@@ -7,52 +7,24 @@ on:
   workflow_dispatch:
     inputs:
       size_mode:
-        description: "Partition sizes: default or manual"
+        description: "Select sizes"
         type: choice
         options:
-          - default
-          - manual
-        default: default
+          - Default
+          - Manual
+        default: Default
       systemsize:
-        description: "Manual only - system size (MiB)"
+        description: "System size (MiB) - Manual only"
         type: string
         default: "7000"
       vendorsize:
-        description: "Manual only - vendor size (MiB)"
+        description: "Vendor size (MiB) - Manual only"
         type: string
         default: "1500"
       productsize:
-        description: "Manual only - product size (MiB)"
+        description: "Product size (MiB) - Manual only"
         type: string
         default: "1500"
-      odmsize:
-        description: "Manual only - odm size (MiB)"
-        type: string
-        default: "4"
-      prismsize:
-        description: "Manual only - prism size (MiB)"
-        type: string
-        default: "600"
-      opticssize:
-        description: "Manual only - optics size (MiB)"
-        type: string
-        default: "30"
-      cachesize:
-        description: "Manual only - cache size (MiB)"
-        type: string
-        default: "600"
-      omrsize:
-        description: "Manual only - omr size (MiB)"
-        type: string
-        default: "50"
-      cpdbgsize:
-        description: "Manual only - cp_debug / cp2_debug size (MiB)"
-        type: string
-        default: "5"
-      spusize:
-        description: "Manual only - spu size (MiB)"
-        type: string
-        default: "50"
       publish_release:
         description: Publish a GitHub release
         type: boolean
@@ -69,17 +41,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      SIZE_MODE: ${{ inputs.size_mode || 'default' }}
+      SIZE_MODE: ${{ inputs.size_mode || 'Default' }}
       IN_systemsize: ${{ inputs.systemsize }}
       IN_vendorsize: ${{ inputs.vendorsize }}
       IN_productsize: ${{ inputs.productsize }}
-      IN_odmsize: ${{ inputs.odmsize }}
-      IN_prismsize: ${{ inputs.prismsize }}
-      IN_opticssize: ${{ inputs.opticssize }}
-      IN_cachesize: ${{ inputs.cachesize }}
-      IN_omrsize: ${{ inputs.omrsize }}
-      IN_cpdbgsize: ${{ inputs.cpdbgsize }}
-      IN_spusize: ${{ inputs.spusize }}
 
     steps:
       - name: Checkout
@@ -101,11 +66,11 @@ jobs:
           exit $missing
 
       - name: Apply manual sizes
-        if: env.SIZE_MODE == 'manual'
+        if: env.SIZE_MODE == 'Manual'
         run: |
           set -euo pipefail
           SCRIPT=repartitioner/extreme/repartition.sh
-          for name in systemsize vendorsize productsize odmsize prismsize opticssize cachesize omrsize cpdbgsize spusize; do
+          for name in systemsize vendorsize productsize; do
             var="IN_${name}"
             raw="${!var}"
             if ! [[ "$raw" =~ ^[0-9]+$ ]]; then
@@ -126,11 +91,11 @@ jobs:
           set -euo pipefail
           mkdir -p out
           SUFFIX=""
-          if [ "$SIZE_MODE" = "manual" ]; then
+          if [ "$SIZE_MODE" = "Manual" ]; then
             SUFFIX="_Custom"
           fi
           (cd repartitioner && zip -r9 -X "../out/Exynos9820_Repartitioner${SUFFIX}.zip" META-INF extreme)
-          (cd cleaner && zip -r9 -X ../out/Exynos9820_Partition_Cleaner.zip META-INF extreme)
+          (cd cleaner && zip -r9 -X ../out/Exynos9820_cleaner.zip META-INF extreme)
 
           {
             echo "Mode: ${SIZE_MODE}"
@@ -138,10 +103,10 @@ jobs:
             echo "Partition sizes used by the repartitioner (MiB):"
             echo
             echo '```'
-            grep -E '^[a-z]+size=' repartitioner/extreme/repartition.sh
+            grep -E '^(system|vendor|product)size=' repartitioner/extreme/repartition.sh
             echo '```'
             echo
-            echo "Flash the Repartitioner ZIP first, then the Partition Cleaner ZIP."
+            echo "Flash the Repartitioner ZIP first, then the cleaner ZIP."
           } > out/RELEASE_NOTES.md
 
           cat out/RELEASE_NOTES.md >> "$GITHUB_STEP_SUMMARY"
@@ -177,9 +142,9 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.size_mode == 'manual' && 'Exynos-9820-Repartitioner-Custom' || 'Exynos-9820-Repartitioner' }}
+          tag_name: ${{ inputs.size_mode == 'Manual' && 'Exynos-9820-Repartitioner-Custom' || 'Exynos-9820-Repartitioner' }}
           target_commitish: ${{ github.sha }}
-          name: ${{ inputs.size_mode == 'manual' && 'Exynos 9820/9825 Repartitioner (Custom sizes)' || 'Exynos 9820/9825 Repartitioner' }}
+          name: ${{ inputs.size_mode == 'Manual' && 'Exynos 9820/9825 Repartitioner (Custom sizes)' || 'Exynos 9820/9825 Repartitioner' }}
           body_path: dist/RELEASE_NOTES.md
           files: |
             dist/*.zip
